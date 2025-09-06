@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x86;x64</Platforms>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>NewBeeDB.Backends</PackageId>
+    <Title>NewBeeDB.Backends</Title>
+    <Version>9.0.0.1</Version>
+    <Authors>nscript</Authors>
+    <Company />
+    <Product>NewBeeDB.Backends</Product>
+    <Copyright>Copyright © nscript</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>HNSW;Vector DB</PackageTags>
+    <RepositoryUrl>https://github.com/nscript-site/NewBeeDB</RepositoryUrl>
+    <Description>SqliteBackend of NewBeeDB</Description>
+    <PackageOutputPath>bin\Release\</PackageOutputPath>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReleaseNotes>see https://www.nuget.org/packages/NewBeeDB/</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NewBeeDB\NewBeeDB.csproj" />
+  </ItemGroup>
+
+</Project>
