@@ -9,7 +9,7 @@
 
 ## Key Improvements Over HNSWIndex.Net
 
-During my cross-platform application development with Avalonia, I noticed a lack of embedded databases supporting Native AOT in the C# community. Therefore, I made extensive modifications to HNSWIndex.Net, resulting in the current version of NewBeeDB. The main improvements are as follows:
+During my cross-platform application development with Avalonia, I noticed a lack of embedded vector databases supporting Native AOT in the C# community. Therefore, I made extensive modifications to HNSWIndex.Net, resulting in the current version of NewBeeDB. The main improvements are as follows:
 
 - NativeAOT Compatibility: Adapted to support Native AOT compilation.
 - implified Type System: Streamlined the type system of HNSWIndex.Net by removing many generics. Currently, it only supports vector retrieval for float[], which covers most vector retrieval scenarios.
