@@ -17,7 +17,7 @@ internal class Program
     /// </summary>
     /// <param name="count">the number of inserted samples</param>
     /// <param name="dim">the feature dimension of each sample</param>
-    /// <param name="mode">mode。0:no backend, 1: sqlite backend in memory, 2: sqlite backend using file</param>
+    /// <param name="mode">backend mode. 0: no backend, 1: sqlite backend in memory, 2: sqlite backend using file</param>
     static void RunStressTest(int count = 1000, int dim = 512, int mode = 0)
     {
         var test = new StressTest();
