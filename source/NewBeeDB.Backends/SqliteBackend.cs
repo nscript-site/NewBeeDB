@@ -20,13 +20,12 @@ public class SqliteBackend : IBackend, IDisposable
     private readonly string tableNameOfConfig;
     private readonly string tableNameOfRemovedIndexes;
 
-    public SqliteBackend(string dbPath, string indexTableNamePrefix = "hnsw_default")
+    public SqliteBackend(string dbPath, string indexTableNamePrefix = "hnsw_default", bool readOnly = false)
     {
         var builder = new SqliteConnectionStringBuilder();
         builder.DataSource = dbPath;                  // 数据库路径（含空格也无需手动加引号）
-        builder.Mode = SqliteOpenMode.ReadWriteCreate;
+        builder.Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate;
         builder.Pooling = true;                          // 启用连接池（默认true，减少连接开销）
-        
 
         conn = new SqliteConnection(builder.ToString());
         conn.Open();
@@ -361,9 +360,9 @@ public class SqliteBackend : IBackend, IDisposable
         }
     }
 
-    public HNSWIndex? Load(Func<HNSWPoint, HNSWPoint, float> distFnc, Action<double>? onProgress = null, CancellationToken? token = null)
+    public HNSWIndex? Load(Func<HNSWPoint, HNSWPoint, float> distFnc, Action<double>? onProgress = null, CancellationToken? token = null, bool attachAsIndexBackend = true)
     {
-        return Load(distFnc, null, onProgress, token);
+        return Load(distFnc, null, onProgress, token, attachAsIndexBackend);
     }
 
     #endregion
@@ -375,8 +374,9 @@ public class SqliteBackend : IBackend, IDisposable
     /// <param name="failedLabels">SqliteBackend提供了存储失败数据的功能，这里返回失败的 labels</param>
     /// <param name="onProgress">处理进度的回调函数</param>
     /// <param name="token">是否取消</param>
+    /// <param name="attachAsIndexBackend">是否将当前的 backend 作为索引的后端</param>
     /// <returns></returns>
-    public HNSWIndex? Load(Func<HNSWPoint, HNSWPoint, float> distFnc, List<string>? failedLabels, Action<double>? onProgress = null, CancellationToken? token = null)
+    public HNSWIndex? Load(Func<HNSWPoint, HNSWPoint, float> distFnc, List<string>? failedLabels, Action<double>? onProgress = null, CancellationToken? token = null, bool attachAsIndexBackend = true)
     {
         // 读取配置
         int? entryPointId = GetConfig<int?>(Key_EntryPoint, (stream) => BinarySerializer.DeserializeInt32(stream));
@@ -420,7 +420,9 @@ public class SqliteBackend : IBackend, IDisposable
             RemovedIndexes = removedIndexes
         };
 
-        return new HNSWIndex(distFnc, snapshot,this);
+        IBackend? backend = attachAsIndexBackend ? this : null;
+
+        return new HNSWIndex(distFnc, snapshot, backend);
     }
 
     public void AddRemovedIndex(int index)
