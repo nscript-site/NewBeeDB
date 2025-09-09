@@ -8,9 +8,9 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        TimedHNSWPointExample();
+        //TimedHNSWPointExample();
 
-        //BaseExample();
+        BaseExample();
 
         //ZipExample();
 
@@ -44,7 +44,19 @@ internal class Program
         }
         index.Remove(points[2]);
         var queryPoint = points[0];
+
+        // query by point
         var match = index.Query(queryPoint, 10);
+        Console.WriteLine($"Query Point: {queryPoint.Label}");
+        foreach (var m in match)
+        {
+            Console.WriteLine($"{m.Point.Label} - {m.Distance}");
+        }
+
+        Console.WriteLine();
+
+        // query by vector
+        match = index.Query(queryPoint.Data, 10);
         Console.WriteLine($"Query Point: {queryPoint.Label}");
         foreach (var m in match)
         {

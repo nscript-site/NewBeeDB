@@ -242,6 +242,17 @@ public class HNSWIndex
     /// Optionally probide filter function to ignore certain labels.
     /// Layer parameters indicates at which layer search should be performed (0 - base layer)
     /// </summary>
+    public List<KNNResult> Query(float[] data, int k, Func<HNSWPoint, bool>? filterFnc = null, int layer = 0)
+    {
+        var query = new HNSWPoint() { Data = data };
+        return Query(query, k, filterFnc, layer);
+    }
+
+    /// <summary>
+    /// Get K nearest neighbours of query point. 
+    /// Optionally probide filter function to ignore certain labels.
+    /// Layer parameters indicates at which layer search should be performed (0 - base layer)
+    /// </summary>
     public List<KNNResult> Query(HNSWPoint query, int k, Func<HNSWPoint, bool>? filterFnc = null, int layer = 0)
     {
         if (data.Nodes.Count - data.RemovedIndexes.Count <= 0) return new List<KNNResult>();
