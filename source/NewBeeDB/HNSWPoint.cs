@@ -8,7 +8,7 @@ public partial class HNSWPoint
 
     public string Label { get; set; } = String.Empty;
 
-    public int Id { get; internal set; } = -1;
+    public int Id { get; protected internal set; } = -1;
 
     public bool IsEmpty => Data.Length == 0;
 
@@ -37,7 +37,7 @@ public partial class HNSWPoint
         }
     }
 
-    public static List<HNSWPoint> Random(int vectorSize, int vectorsCount, bool normalize = true, int? startId = null)
+    public static List<HNSWPoint> Random(int vectorSize, int vectorsCount, bool normalize = true, int? startId = null, Func<HNSWPoint>? onCreate = null)
     {
         int seed = (int)DateTime.Now.ToFileTimeUtc();
         var random = new Random(seed);
@@ -53,25 +53,34 @@ public partial class HNSWPoint
 
             string label = startId.HasValue ? (startId.Value + i).ToString() : Guid.NewGuid().ToString("N");
 
-            vectors.Add(new HNSWPoint() { Data = vector, Label = label });
+            HNSWPoint newPoint = onCreate == null ? new HNSWPoint() : onCreate();
+            newPoint.Data = vector;
+            newPoint.Label = label;
+
+            vectors.Add(newPoint);
         }
 
         return vectors;
     }
 
-    public void Serialize(Stream stream)
+    public virtual void Serialize(Stream stream)
     {
         BinarySerializer.SerializeInt32(stream, Id);
         BinarySerializer.SerializeString(stream, Label);
         BinarySerializer.SerializeArray_Float(stream, Data);
     }
 
-    public static HNSWPoint Deserialize(Stream stream)
+    public virtual void DeserializeFrom(Stream stream)
     {
-        var point = new HNSWPoint();
-        point.Id = BinarySerializer.DeserializeInt32(stream);
-        point.Label = BinarySerializer.DeserializeString(stream);
-        point.Data = BinarySerializer.DeserializeArray_Float(stream);
+        Id = BinarySerializer.DeserializeInt32(stream);
+        Label = BinarySerializer.DeserializeString(stream);
+        Data = BinarySerializer.DeserializeArray_Float(stream);
+    }
+
+    public static HNSWPoint Deserialize(Stream stream, Func<HNSWPoint>? onCreate = null)
+    {
+        var point = onCreate == null ? new HNSWPoint(): onCreate();
+        point.DeserializeFrom(stream);
         return point;
     }
 
@@ -80,7 +89,7 @@ public partial class HNSWPoint
         return new HNSWPoint() { Id = id, Label = label, Data = data };
     }
 
-    public bool Equals(HNSWPoint p)
+    public virtual bool Equals(HNSWPoint p)
     {
         if (this.Label != p.Label || this.Id != p.Id) return false;
         if (this.Data.Length != p.Data.Length) return false;

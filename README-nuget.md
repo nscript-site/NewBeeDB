@@ -110,8 +110,152 @@ foreach (var m in match)
 
 A single HNSWIndex is suitable for datasets with fewer than 10 million entries. For larger-scale datasets, sharding is required—each shard functions as an independent HNSWIndex. You need to implement the relevant sharding logic yourself.
 
-# 中文说明
+## Extending HNSWPoint
 
+You can extend `HNSWPoint` by adding new properties.
+
+The `NewBeeDB.Backends` project includes an extension example where `TimedHNSWPoint` inherits from `HNSWPoint` and adds a `CreatedTime` property:
+
+```csharp
+public class TimedHNSWPoint : HNSWPoint
+{
+    public DateTime? CreatedTime { get; set; } = null;
+
+    public override void Serialize(Stream stream)
+    {
+        base.Serialize(stream);
+        BinarySerializer.SerializeDateTime(stream, this.CreatedTime);
+    }
+
+    public override void DeserializeFrom(Stream stream)
+    {
+        base.DeserializeFrom(stream);
+        this.CreatedTime = BinarySerializer.DeserializeDateTime(stream);
+    }
+
+    public override bool Equals(HNSWPoint p)
+    {
+        if(p is TimedHNSWPoint tp)
+        {
+            if (this.CreatedTime != tp.CreatedTime)
+                return false;
+        }
+        else
+            return false;
+        
+        return base.Equals(p);
+    }
+
+    public static TimedHNSWPoint Deserialize(int id, string label, float[] data, DateTime? createTime)
+    {
+        return new TimedHNSWPoint() { Id = id, Label = label, Data = data, CreatedTime = createTime };
+    }
+}
+```
+
+Add a new `TimedHNSWPointSqliteSerializer` class for serializing and deserializing this class to SQLite:
+
+```csharp
+public class TimedHNSWPointSqliteSerializer : IHNSWPointSqliteSerializer
+{
+    public HNSWPoint CreateBadPoint(string label)
+    {
+        return new TimedHNSWPoint
+        {
+            Label = label,
+            Data = Array.Empty<float>(),
+        };
+    }
+
+    public HNSWPoint DeserializePoint(string label, Stream stream)
+    {
+        int id = BinarySerializer.DeserializeInt32(stream);
+        var data = BinarySerializer.DeserializeArray_Float(stream);
+        var time = BinarySerializer.DeserializeDateTime(stream);
+        return TimedHNSWPoint.Deserialize(id, label, data,time);
+    }
+
+    public void SerializePoint(Stream stream, HNSWPoint point, int? newId = null)
+    {
+        int id = newId ?? point.Id;
+        if (point is TimedHNSWPoint tp)
+        {
+            // no need to serialize Label, because in SQLite Label is stored as primary key
+            BinarySerializer.SerializeInt32(stream, id);
+            BinarySerializer.SerializeArray_Float(stream, point.Data);
+            BinarySerializer.SerializeDateTime(stream, tp.CreatedTime);
+        }
+        else
+        {
+            throw new ArgumentException("Point must be of type TimedHNSWPoint", nameof(point));
+        }
+    }
+}
+```
+
+That's all. Here's a complete example:
+
+```csharp
+private static void TimedHNSWPointExample()
+{
+    // generate random TimedHNSWPoints
+    DateTime now = DateTime.Now;
+    TimedHNSWPoint GeneratePoint()
+    {
+        now += TimeSpan.FromMinutes(1);
+        return new TimedHNSWPoint() { CreatedTime = now };
+    }
+
+    var points = HNSWPoint.Random(128, 20, onCreate: GeneratePoint);
+
+    // use SqliteBackend with TimedHNSWPointSqliteSerializer, it can serialize/deserialize TimedHNSWPoint
+    var sqliteBackend = new SqliteBackend(":memory:", hnswPointSerializer: new TimedHNSWPointSqliteSerializer());
+
+    // build hnsw index and print points and their CreatedTime
+    HNSWIndex hnsw = new HNSWIndex(HNSWPoint.CosineMetricUnitCompute, backend: sqliteBackend);
+    Console.WriteLine("Adding points:");
+    foreach (var p in points)
+    {
+        Console.WriteLine($"Point: {p.Label}, CreatedTime: {(p as TimedHNSWPoint)!.CreatedTime!.Value.ToFileTimeUtc()}");
+        hnsw.Add(p);
+    }
+
+    // query
+    Console.WriteLine();
+
+    var queryPoint = points[0];
+    var match = hnsw.Query(queryPoint, 10);
+    Console.WriteLine($"Query Point: {queryPoint.Label}");
+    Console.WriteLine();
+    Console.WriteLine("Matched Points:");
+    foreach (var m in match)
+    {
+        var tp = m.Point as TimedHNSWPoint;
+        if(tp == null) Console.WriteLine($"{m.Point.Label} - {m.Distance}");
+        else
+        {
+            Console.WriteLine($"{tp.Label},{tp.CreatedTime!.Value.ToFileTimeUtc()} - {m.Distance}");
+        }
+    }
+
+    // load from sqlite backend
+    var loadedHnswFromSqlite = sqliteBackend.Load(HNSWPoint.CosineMetricUnitCompute);
+
+    // compare hnsw and loadedHnswFromSqlite
+    Console.WriteLine($"hnsw == loadedHnswFromSqlite: {hnsw.Equals(loadedHnswFromSqlite)}");
+
+    // serialize to zip file
+    hnsw.SerializeToZipFile("timed_hnsw_index.zip", "timed_demo", sliceMaxCount: 500000);
+
+    // load from zip file
+    var loadedHnswFromZipFile = HNSWIndex.DeserializeFromZipFile<TimedHNSWPoint>(HNSWPoint.CosineMetricUnitCompute, "timed_hnsw_index.zip", "timed_demo");
+
+    // compare hnsw and loadedHnswFromZipFile
+    Console.WriteLine($"hnsw == loadedHnswFromZipFile: {hnsw.Equals(loadedHnswFromZipFile)}");
+}
+```
+
+# 中文说明
 
 > NewBeeDB 是在 [HNSWIndex.Net](https://github.com/Skaipi/HNSWIndex.Net) 的代码基础上开发的嵌入式向量数据库，可以很方便的用于跨平台的端侧 AI 应用开发。同时，它也为开发更复杂、更大规模向量应用，提供了基础框架。
 
@@ -222,3 +366,148 @@ foreach (var m in match)
 ## 大型应用
 
 单个 HNSWIndex 适合 1000万以下的数据。如果需要支持更大规模的数据，需要进行分片处理，每个片是单独的1个 HNSWIndex。需要自行实现相关逻辑。
+
+## 扩展 HNSWPoint
+
+你可以扩展 HNSWPoint, 添加新的属性。
+
+`NewBeeDB.Backends` 项目中，自带了一个扩展示范， `TimedHNSWPoint` 继承自 `HNSWPoint`, 增加了 `CreatedTime` 一项:
+
+```csharp
+public class TimedHNSWPoint : HNSWPoint
+{
+    public DateTime? CreatedTime { get; set; } = null;
+
+    public override void Serialize(Stream stream)
+    {
+        base.Serialize(stream);
+        BinarySerializer.SerializeDateTime(stream, this.CreatedTime);
+    }
+
+    public override void DeserializeFrom(Stream stream)
+    {
+        base.DeserializeFrom(stream);
+        this.CreatedTime = BinarySerializer.DeserializeDateTime(stream);
+    }
+
+    public override bool Equals(HNSWPoint p)
+    {
+        if(p is TimedHNSWPoint tp)
+        {
+            if (this.CreatedTime != tp.CreatedTime)
+                return false;
+        }
+        else
+            return false;
+        
+        return base.Equals(p);
+    }
+
+    public static TimedHNSWPoint Deserialize(int id, string label, float[] data, DateTime? createTime)
+    {
+        return new TimedHNSWPoint() { Id = id, Label = label, Data = data, CreatedTime = createTime };
+    }
+}
+```
+
+再新增一个 `TimedHNSWPointSqliteSerializer` 类，用于序列化和反序列化该类到 sqlite:
+
+```csharp
+public class TimedHNSWPointSqliteSerializer : IHNSWPointSqliteSerializer
+{
+    public HNSWPoint CreateBadPoint(string label)
+    {
+        return new TimedHNSWPoint
+        {
+            Label = label,
+            Data = Array.Empty<float>(),
+        };
+    }
+
+    public HNSWPoint DeserializePoint(string label, Stream stream)
+    {
+        int id = BinarySerializer.DeserializeInt32(stream);
+        var data = BinarySerializer.DeserializeArray_Float(stream);
+        var time = BinarySerializer.DeserializeDateTime(stream);
+        return TimedHNSWPoint.Deserialize(id, label, data,time);
+    }
+
+    public void SerializePoint(Stream stream, HNSWPoint point, int? newId = null)
+    {
+        int id = newId ?? point.Id;
+        if (point is TimedHNSWPoint tp)
+        {
+            // 无需序列化 Label，因为在 SQLite 中 Label 是作为主键存储的
+            BinarySerializer.SerializeInt32(stream, id);
+            BinarySerializer.SerializeArray_Float(stream, point.Data);
+            BinarySerializer.SerializeDateTime(stream, tp.CreatedTime);
+        }
+        else
+        {
+            throw new ArgumentException("Point must be of type TimedHNSWPoint", nameof(point));
+        }
+    }
+}
+```
+
+这样就可以了，用起来也很简单:
+
+```csharp
+private static void TimedHNSWPointExample()
+{
+    // 生成一系列随机的 TimedHNSWPoint 点
+    DateTime now = DateTime.Now;
+    TimedHNSWPoint GeneratePoint()
+    {
+        now += TimeSpan.FromMinutes(1);
+        return new TimedHNSWPoint() { CreatedTime = now };
+    }
+
+    var points = HNSWPoint.Random(128, 20, onCreate: GeneratePoint);
+
+    // 使用带有 TimedHNSWPointSqliteSerializer 的 SqliteBackend，它可以序列化/反序列化 TimedHNSWPoint
+    var sqliteBackend = new SqliteBackend(":memory:", hnswPointSerializer: new TimedHNSWPointSqliteSerializer());
+
+    // 构建 HNSW 索引并打印点及其创建时间
+    HNSWIndex hnsw = new HNSWIndex(HNSWPoint.CosineMetricUnitCompute, backend: sqliteBackend);
+    Console.WriteLine("Adding points:");
+    foreach (var p in points)
+    {
+        Console.WriteLine($"Point: {p.Label}, CreatedTime: {(p as TimedHNSWPoint)!.CreatedTime!.Value.ToFileTimeUtc()}");
+        hnsw.Add(p);
+    }
+
+    Console.WriteLine();
+
+    // 查询
+    var queryPoint = points[0];
+    var match = hnsw.Query(queryPoint, 10);
+    Console.WriteLine($"Query Point: {queryPoint.Label}");
+    Console.WriteLine();
+    Console.WriteLine("Matched Points:");
+    foreach (var m in match)
+    {
+        var tp = m.Point as TimedHNSWPoint;
+        if(tp == null) Console.WriteLine($"{m.Point.Label} - {m.Distance}");
+        else
+        {
+            Console.WriteLine($"{tp.Label},{tp.CreatedTime!.Value.ToFileTimeUtc()} - {m.Distance}");
+        }
+    }
+
+    // 从 sqlite 后端加载
+    var loadedHnswFromSqlite = sqliteBackend.Load(HNSWPoint.CosineMetricUnitCompute);
+
+    // 比较 hnsw 和 loadedHnswFromSqlite
+    Console.WriteLine($"hnsw == loadedHnswFromSqlite: {hnsw.Equals(loadedHnswFromSqlite)}");
+
+    // 序列化到 zip 文件
+    hnsw.SerializeToZipFile("timed_hnsw_index.zip", "timed_demo", sliceMaxCount: 500000);
+
+    // 从 zip 文件加载
+    var loadedHnswFromZipFile = HNSWIndex.DeserializeFromZipFile<TimedHNSWPoint>(HNSWPoint.CosineMetricUnitCompute, "timed_hnsw_index.zip", "timed_demo");
+
+    // 比较 hnsw 和 loadedHnswFromZipFile
+    Console.WriteLine($"hnsw == loadedHnswFromZipFile: {hnsw.Equals(loadedHnswFromZipFile)}");
+}
+```

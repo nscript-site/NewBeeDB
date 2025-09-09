@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace NewBeeDB;
@@ -68,6 +69,27 @@ public class BinarySerializer
             read += n;
         }
         return BinaryPrimitives.ReadInt32LittleEndian(buffer);
+    }
+
+    public static void SerializeInt64(Stream stream, long val)
+    {
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, val);
+        stream.Write(buffer);
+    }
+
+    public static long DeserializeInt64(Stream stream)
+    {
+        Span<byte> buffer = stackalloc byte[8];
+        int read = 0;
+        while (read < 8)
+        {
+            int n = stream.Read(buffer.Slice(read, 8 - read));
+            if (n == 0)
+                throw new EndOfStreamException("Unexpected end of stream while reading long integer.");
+            read += n;
+        }
+        return BinaryPrimitives.ReadInt64LittleEndian(buffer);
     }
 
     public static void SerializeDouble(Stream stream, double val)
@@ -242,5 +264,39 @@ public class BinarySerializer
             keys.Add(DeserializeString(stream));
         }
         return keys;
+    }
+
+    public static void SerializeDateTime(Stream stream, DateTime? time)
+    {
+        if (time == null)
+            BinarySerializer.SerializeInt32(stream, 0);
+        else
+        {
+            var timeVal = time.Value;
+            BinarySerializer.SerializeInt32(stream, 1);
+            int timeKind = (timeVal.Kind == DateTimeKind.Utc) ? 1 :
+                (timeVal.Kind == DateTimeKind.Local) ? 2 : 0;
+            BinarySerializer.SerializeInt32(stream, timeKind);
+            BinarySerializer.SerializeInt64(stream, timeVal.ToUniversalTime().ToFileTimeUtc());
+        }
+    }
+
+    public static DateTime? DeserializeDateTime(Stream stream)
+    {
+        DateTime? time = null;
+        int hasTime = BinarySerializer.DeserializeInt32(stream);
+        if (hasTime == 1)
+        {
+            int timeKind = BinarySerializer.DeserializeInt32(stream);
+            DateTimeKind TimeKind = (timeKind == 1) ? DateTimeKind.Utc :
+                (timeKind == 2) ? DateTimeKind.Local : DateTimeKind.Unspecified;
+            long fileTime = BinarySerializer.DeserializeInt64(stream);
+            time = DateTime.FromFileTimeUtc(fileTime);
+            if (TimeKind == DateTimeKind.Local)
+                time = time.Value.ToLocalTime();
+            else if (TimeKind == DateTimeKind.Unspecified)
+                time = DateTime.SpecifyKind(time.Value, DateTimeKind.Unspecified);
+        }
+        return time;
     }
 }

@@ -60,7 +60,7 @@ internal class HNSWIndexZipFileSerializer
         }
     }
 
-    public static HNSWIndexSnapshotWithSlices? Deserialize(string zipFilePath, string indexName = "default")
+    public static HNSWIndexSnapshotWithSlices? Deserialize(string zipFilePath, string indexName = "default", Func<HNSWPoint>? onCreate = null)
     {
         string entryKey = $"{indexName}.hnswindex";
         using (var zip = ZipFile.OpenRead(zipFilePath))
@@ -71,7 +71,7 @@ internal class HNSWIndexZipFileSerializer
             if (mainEntry != null)
             {
                 using var stream = mainEntry.Open();
-                body = HNSWIndexSnapshot.Deserialize(stream);
+                body = HNSWIndexSnapshot.Deserialize(stream, onCreate);
             }
 
             if(body == null)

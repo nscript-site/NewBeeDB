@@ -8,11 +8,13 @@ internal class Program
 {
     static void Main(string[] args)
     {
+        TimedHNSWPointExample();
+
         //BaseExample();
 
         //ZipExample();
 
-        BackendExample();
+        //BackendExample();
 
         //int total = 1000;
         //if (args.Length > 0)
@@ -48,6 +50,64 @@ internal class Program
         {
             Console.WriteLine($"{m.Point.Label} - {m.Distance}");
         }
+    }
+
+    private static void TimedHNSWPointExample()
+    {
+        // generate random TimedHNSWPoints
+        DateTime now = DateTime.Now;
+        TimedHNSWPoint GeneratePoint()
+        {
+            now += TimeSpan.FromMinutes(1);
+            return new TimedHNSWPoint() { CreatedTime = now };
+        }
+
+        var points = HNSWPoint.Random(128, 20, onCreate: GeneratePoint);
+
+        // use SqliteBackend with TimedHNSWPointSqliteSerializer, it can serialize/deserialize TimedHNSWPoint
+        var sqliteBackend = new SqliteBackend(":memory:", hnswPointSerializer: new TimedHNSWPointSqliteSerializer());
+
+        // print points and their CreatedTime
+        HNSWIndex hnsw = new HNSWIndex(HNSWPoint.CosineMetricUnitCompute, backend: sqliteBackend);
+        Console.WriteLine("Adding points:");
+        foreach (var p in points)
+        {
+            Console.WriteLine($"Point: {p.Label}, CreatedTime: {(p as TimedHNSWPoint)!.CreatedTime!.Value.ToFileTimeUtc()}");
+            hnsw.Add(p);
+        }
+
+        Console.WriteLine();
+
+        // query
+        var queryPoint = points[0];
+        var match = hnsw.Query(queryPoint, 10);
+        Console.WriteLine($"Query Point: {queryPoint.Label}");
+        Console.WriteLine();
+        Console.WriteLine("Matched Points:");
+        foreach (var m in match)
+        {
+            var tp = m.Point as TimedHNSWPoint;
+            if(tp == null) Console.WriteLine($"{m.Point.Label} - {m.Distance}");
+            else
+            {
+                Console.WriteLine($"{tp.Label},{tp.CreatedTime!.Value.ToFileTimeUtc()} - {m.Distance}");
+            }
+        }
+
+        // load from sqlite backend
+        var loadedHnswFromSqlite = sqliteBackend.Load(HNSWPoint.CosineMetricUnitCompute);
+
+        // compare hnsw and loadedHnswFromSqlite
+        Console.WriteLine($"hnsw == loadedHnswFromSqlite: {hnsw.Equals(loadedHnswFromSqlite)}");
+
+        // serialize to zip file
+        hnsw.SerializeToZipFile("timed_hnsw_index.zip", "timed_demo", sliceMaxCount: 500000);
+
+        // load from zip file
+        var loadedHnswFromZipFile = HNSWIndex.DeserializeFromZipFile<TimedHNSWPoint>(HNSWPoint.CosineMetricUnitCompute, "timed_hnsw_index.zip", "timed_demo");
+
+        // compare hnsw and loadedHnswFromZipFile
+        Console.WriteLine($"hnsw == loadedHnswFromZipFile: {hnsw.Equals(loadedHnswFromZipFile)}");
     }
 
     private static void ZipExample()

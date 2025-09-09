@@ -37,12 +37,12 @@ public partial class GraphDataSnapshot
         SerializeRemovedIndexes(stream);
     }
 
-    public static GraphDataSnapshot Deserialize(Stream stream)
+    public static GraphDataSnapshot Deserialize(Stream stream, Func<HNSWPoint>? onCreate)
     {
         var snapshot = new GraphDataSnapshot();
         snapshot.EntryPointId = BinarySerializer.DeserializeInt32(stream);
         snapshot.Capacity = BinarySerializer.DeserializeInt32(stream);
-        snapshot.Items = DeserializeItems(stream);
+        snapshot.Items = DeserializeItems(stream, onCreate);
         snapshot.Nodes = DeserializeNodes(stream);
         snapshot.RemovedIndexes = DeserializeRemovedIndexes(stream);
         return snapshot;
@@ -62,14 +62,14 @@ public partial class GraphDataSnapshot
         }
     }
 
-    public static ConcurrentDictionary<int, HNSWPoint> DeserializeItems(Stream stream)
+    public static ConcurrentDictionary<int, HNSWPoint> DeserializeItems(Stream stream, Func<HNSWPoint>? onCreate)
     {
         int count = BinarySerializer.DeserializeInt32(stream);
         var items = new ConcurrentDictionary<int, HNSWPoint>(4,count);
         for (int i = 0; i < count; i++)
         {
             int index = BinarySerializer.DeserializeInt32(stream);
-            var point = HNSWPoint.Deserialize(stream);
+            var point = HNSWPoint.Deserialize(stream, onCreate);
             items[index] = point;
         }
         return items;

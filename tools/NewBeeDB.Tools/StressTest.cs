@@ -57,7 +57,7 @@ internal class StressTest
             if (num % 100 == 0)
             {
                 swBatch.Stop();
-                Console.WriteLine($"Add {num}/{Count} points, Elapsed Time: {swBatch.Elapsed.Seconds} s");
+                Console.WriteLine($"Add {num}/{Count} points, Elapsed Time: {swBatch.Elapsed.TotalSeconds.ToString("0.0000")} s");
                 swBatch.Restart();
             }
         }

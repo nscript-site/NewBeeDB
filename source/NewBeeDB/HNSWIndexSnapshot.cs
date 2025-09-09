@@ -56,7 +56,7 @@ public partial class HNSWIndexSnapshot
         }
     }
 
-    public static HNSWIndexSnapshot Deserialize(Stream stream)
+    public static HNSWIndexSnapshot Deserialize(Stream stream, Func<HNSWPoint>? onCreate)
     {
         bool isValid = DeserializeHeader(stream, out int version);
         if (isValid == false) throw new InvalidDataException(nameof(stream));
@@ -70,7 +70,7 @@ public partial class HNSWIndexSnapshot
         int hasDataSnapshot = BinarySerializer.DeserializeInt32(stream);
         if (hasDataSnapshot == 1)
         {
-            snapshot.DataSnapshot = GraphDataSnapshot.Deserialize(stream);
+            snapshot.DataSnapshot = GraphDataSnapshot.Deserialize(stream, onCreate);
         }
         return snapshot;
     }

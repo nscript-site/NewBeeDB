@@ -20,8 +20,13 @@ public class SqliteBackend : IBackend, IDisposable
     private readonly string tableNameOfConfig;
     private readonly string tableNameOfRemovedIndexes;
 
-    public SqliteBackend(string dbPath, string indexTableNamePrefix = "hnsw_default", bool readOnly = false)
+    public IHNSWPointSqliteSerializer HNSWPointSqliteSerializer { get; protected set; }
+
+    public SqliteBackend(string dbPath, string indexTableNamePrefix = "hnsw_default", bool readOnly = false,
+        IHNSWPointSqliteSerializer? hnswPointSerializer = null)
     {
+        HNSWPointSqliteSerializer = hnswPointSerializer ?? new HNSWPointSqliteSerializer();
+
         var builder = new SqliteConnectionStringBuilder();
         builder.DataSource = dbPath;                  // 数据库路径（含空格也无需手动加引号）
         builder.Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate;
@@ -216,8 +221,6 @@ public class SqliteBackend : IBackend, IDisposable
     {
         ExcuteCount++;
 
-        int id = newId ?? point.Id;
-
         lock (conn)
         {
             using var cmd = conn.CreateCommand();
@@ -230,9 +233,10 @@ public class SqliteBackend : IBackend, IDisposable
             cmd.Parameters.AddWithValue("@label", point.Label);
 
             // 序列化 point.Data 为二进制
+
             using var ms = new MemoryStream();
-            BinarySerializer.SerializeInt32(ms, id);
-            BinarySerializer.SerializeArray_Float(ms, point.Data);
+            
+            HNSWPointSqliteSerializer.SerializePoint(ms, point, newId);
 
             cmd.Parameters.AddWithValue("@data", ms.ToArray());
 
@@ -243,7 +247,9 @@ public class SqliteBackend : IBackend, IDisposable
     public void SaveBadPoint(string label)
     {
         // 这里简单地调用 AddPoint，存储一个空的 Data
-        SavePoint(new HNSWPoint { Label = label, Data = Array.Empty<float>() }, -1);
+        var badPoint = HNSWPointSqliteSerializer.CreateBadPoint(label);
+
+        SavePoint(badPoint, -1);
     }
 
     public void RemovePoint(string label)
@@ -507,16 +513,16 @@ public class SqliteBackend : IBackend, IDisposable
                 var label = reader["Label"].ToString() ?? string.Empty;
                 var data = (byte[])reader["Data"];
                 using var ms = new MemoryStream(data);
-                int index = BinarySerializer.DeserializeInt32(ms);
-                var pointData = BinarySerializer.DeserializeArray_Float(ms);
-                var point = HNSWPoint.Deserialize(index, label, pointData);
+
+                var point = HNSWPointSqliteSerializer.DeserializePoint(label, ms);
+
                 if (point.IsEmpty)
                 {
                     failedLabels?.Add(label);
                 }
                 else
                 {
-                    points.Add(new KeyValuePair<int, HNSWPoint>(index, point));
+                    points.Add(new KeyValuePair<int, HNSWPoint>(point.Id, point));
                 }
             }
         }

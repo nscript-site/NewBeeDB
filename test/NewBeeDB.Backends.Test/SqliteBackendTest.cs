@@ -9,6 +9,7 @@ public class SqliteBackendTest
         public TestableSqliteBackend(SqliteBackend backend)
             : base(":memory:") // 只用于测试，实际复用连接
         {
+            this.HNSWPointSqliteSerializer = backend.HNSWPointSqliteSerializer;
             // 反射复制连接字段
             var connField = typeof(SqliteBackend).GetField("conn", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             connField.SetValue(this, connField.GetValue(backend));

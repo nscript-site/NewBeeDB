@@ -336,21 +336,29 @@ public class HNSWIndex
         return new HNSWIndex(distFnc, slices.Snapshot);
     }
 
+    public static HNSWIndex? DeserializeFromZipFile<T>(Func<HNSWPoint, HNSWPoint, float> distFnc, string zipFilePath, string indexName = "default") where T:HNSWPoint,new()
+    {
+        var slices = HNSWIndexZipFileSerializer.Deserialize(zipFilePath, indexName, ()=> new T());
+        if (slices == null) return null;
+        slices.Merge();
+        return new HNSWIndex(distFnc, slices.Snapshot);
+    }
+
     /// <summary>
     /// Reconstruct the graph from a serialized snapshot image.
     /// </summary>
-    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, string filePath)
+    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, string filePath, Func<HNSWPoint>? onCreate = null)
     {
         using(FileStream fs = new FileStream(filePath, FileMode.Open))
         {
-            return Deserialize(distFnc, fs);
+            return Deserialize(distFnc, fs, onCreate);
         }
     }
 
-    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, byte[] buff)
+    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, byte[] buff, Func<HNSWPoint>? onCreate = null)
     {
         using (MemoryStream ms = new MemoryStream(buff))
-            return Deserialize(distFnc, ms);
+            return Deserialize(distFnc, ms, onCreate);
     }
 
     /// <summary>
@@ -359,9 +367,9 @@ public class HNSWIndex
     /// <param name="distFnc"></param>
     /// <param name="stream"></param>
     /// <returns></returns>
-    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, Stream stream)
+    public static HNSWIndex? Deserialize(Func<HNSWPoint, HNSWPoint, float> distFnc, Stream stream, Func<HNSWPoint>? onCreate = null)
     {
-        var snapshot = HNSWIndexSnapshot.Deserialize(stream);
+        var snapshot = HNSWIndexSnapshot.Deserialize(stream, onCreate);
         return snapshot == null ? null : new HNSWIndex(distFnc, snapshot);
     }
 

@@ -1,4 +1,5 @@
 ﻿using NewBeeDB.Backends;
+using System.Data.Common;
 using System.Diagnostics;
 
 namespace NewBeeDB.Tools;
@@ -28,7 +29,7 @@ internal class LoadIndex
         var snapshot = HNSWIndexSnapshot.CreateFrom(index);
         var data = snapshot.DataSnapshot;
         var p = snapshot.Parameters;
-        Console.WriteLine($"Index loaded from {Path}");
+        Console.WriteLine($"Index loaded from {Path}, Elapsed Time: {sw.Elapsed.TotalSeconds.ToString("0.0000")} s");
 
         if(p != null)
         {
@@ -72,5 +73,8 @@ internal class LoadIndex
                 Console.WriteLine("  First item is null or has no vector.");
             }
         }
+
+        Console.WriteLine("Press any key to exit...");
+        Console.ReadKey();
     }
 }
